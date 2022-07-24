@@ -1,0 +1,4 @@
+.venv
+.idea
+test_list.xlsx
+__pycache__
