@@ -1,5 +1,10 @@
+import time
+
 from validate_email import validate_email
 import openpyxl
+import DNS
+
+DNS.defaults['server'] = ['8.8.8.8', '8.8.4.4']
 
 
 class EmailValidator:
@@ -25,15 +30,29 @@ class EmailValidator:
     def check_address(check_list):
         check_result = []
 
-        for address in check_list:
-            check_syntax = validate_email(address)
-            check_existence = validate_email(address, verify=True)
-            check_dns = validate_email(address, check_mx=True)
+        counter = 0
 
-            if check_syntax and check_existence and check_dns:
-                check_result.append('Валидный')
-            else:
-                check_result.append('Не валидный')
+        for address in check_list:
+            try:
+                check_syntax = validate_email(address)
+                check_existence = validate_email(address, verify=True)
+                check_dns = validate_email(address, check_mx=True)
+
+                if check_syntax and check_existence and check_dns:
+                    check_result.append('Валидный')
+                else:
+                    check_result.append('Не валидный')
+
+                if counter % 100 == 0:
+                    time.sleep(5)
+                    counter += 1
+                    print(f'Проверено {counter} адресов')
+                else:
+                    counter += 1
+                    continue
+
+            except TimeoutError:
+                check_result.append('Ошибка валидации')
 
         return check_result
 
@@ -53,3 +72,12 @@ class EmailValidator:
         book.save(self.file_name)
 
         return True
+
+
+if __name__ == '__main__':
+    test = EmailValidator('Файл проверки.xlsx')
+    start_time = time.time()
+    addresses = test.get_info()
+    check_result = test.check_address(addresses)
+    flag = test.write_data(check_result)
+    print("--- %s seconds ---" % (time.time() - start_time))
