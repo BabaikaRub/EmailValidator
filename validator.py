@@ -28,8 +28,8 @@ class EmailValidator:
 
     @staticmethod
     def check_address(check_list):
-        check_result = []
 
+        check_result = []
         counter = 0
 
         for address in check_list:
@@ -45,8 +45,8 @@ class EmailValidator:
 
                 if counter % 100 == 0:
                     time.sleep(5)
-                    counter += 1
                     print(f'Проверено {counter} адресов')
+                    counter += 1
                 else:
                     counter += 1
                     continue
