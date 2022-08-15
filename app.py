@@ -1,13 +1,19 @@
 import traceback
 import sys
+import time
 
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from PyQt5.QtWidgets import QMessageBox, QFileDialog
 from openpyxl.utils.exceptions import InvalidFileException
+from validate_email import validate_email
+import openpyxl
+import DNS
 
 from ui import Ui_MainWindow
-from validator import EmailValidator
+
+
+DNS.defaults['server'] = ['8.8.8.8', '8.8.4.4']
 
 
 class App(QtWidgets.QMainWindow):
@@ -38,6 +44,12 @@ class App(QtWidgets.QMainWindow):
         self.ui.label_2.setText('Файл записан')
         self.ui.pushButton.setEnabled(1)
 
+    def show_info(self, info):
+        self.ui.label_2.setText(f'Проверено {info} адресов')
+
+    def start_info(self):
+        self.ui.label_2.setText('В процессе...')
+
     def init_ui(self):
         self.setWindowTitle('EmailValidator')
 
@@ -46,6 +58,8 @@ class App(QtWidgets.QMainWindow):
         self.t = QThread()
         self.obj.moveToThread(self.t)
         self.t.started.connect(self.obj.start)
+        self.obj.startSignal.connect(self.start_info)
+        self.obj.updateSignal.connect(self.show_info)
         self.obj.finishSignal.connect(self.t.quit)
         self.obj.finishSignal.connect(self.show_end)
 
@@ -56,6 +70,8 @@ class App(QtWidgets.QMainWindow):
 
 class Validator(QObject):
     finishSignal = pyqtSignal()
+    updateSignal = pyqtSignal(int)
+    startSignal = pyqtSignal()
 
     def __init__(self, file_name):
         super().__init__()
@@ -63,16 +79,80 @@ class Validator(QObject):
 
     def start(self):
         try:
-            email_validator = EmailValidator(self.file_name)
-
-            addresses = email_validator.get_info()
-            check_result = email_validator.check_address(addresses)
-            email_validator.write_data(check_result)
+            excel_writer = ExcelWorker(self.file_name)
+            self.startSignal.emit()
+            addresses = excel_writer.get_info()
+            check_result = self.check_address(addresses)
+            excel_writer.write_data(check_result)
 
             self.finishSignal.emit()
 
         except InvalidFileException:
             App.popup_info()
+
+    def check_address(self, check_list):
+
+        check_result = []
+        counter = 1
+
+        for address in check_list:
+            try:
+                check_syntax = validate_email(address)
+                check_existence = validate_email(address, verify=True)
+                check_dns = validate_email(address, check_mx=True)
+
+                if check_syntax and check_existence and check_dns:
+                    check_result.append('Валидный')
+                else:
+                    check_result.append('Не валидный')
+
+                if counter % 100 == 0:
+                    time.sleep(5)
+                    self.updateSignal.emit(counter)
+                    counter += 1
+                else:
+                    counter += 1
+                    continue
+
+            except TimeoutError:
+                check_result.append('Ошибка валидации')
+
+        return check_result
+
+
+class ExcelWorker:
+
+    def __init__(self, file_name):
+        self.file_name = file_name
+
+    def get_info(self):
+        book = openpyxl.open(self.file_name, read_only=True)
+
+        sheet = book.active
+
+        emails = []
+
+        for row in range(1, sheet.max_row + 1):
+            email = sheet[row][0].value
+
+            emails.append(email)
+
+        return emails
+
+    def write_data(self, data):
+        book = openpyxl.load_workbook(self.file_name)
+
+        sheet = book.active
+
+        row = 1
+
+        for record in data:
+
+            sheet.cell(row=row, column=2, value=record)
+
+            row += 1
+
+        book.save(self.file_name)
 
 
 def main():
