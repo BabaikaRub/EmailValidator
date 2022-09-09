@@ -97,13 +97,17 @@ class Validator(QObject):
 
         for address in check_list:
             try:
-                check_syntax = validate_email(address)
-                check_existence = validate_email(address, verify=True)
-                check_dns = validate_email(address, check_mx=True)
+                try:
+                    check_syntax = validate_email(address)
+                    check_existence = validate_email(address, verify=True)
+                    check_dns = validate_email(address, check_mx=True)
 
-                if check_syntax and check_existence and check_dns:
-                    check_result.append('Валидный')
-                else:
+                    if check_syntax and check_existence and check_dns:
+                        check_result.append('Валидный')
+                    else:
+                        check_result.append('Не валидный')
+
+                except UnicodeEncodeError:
                     check_result.append('Не валидный')
 
                 if counter % 100 == 0:
